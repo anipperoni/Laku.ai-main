@@ -1,1 +1,1 @@
-web: gunicorn --workers 4 --worker-class gevent --timeout 120 --bind 0.0.0.0:$PORT wsgi:app
+web: gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class gthread --threads 2 --timeout 120 --preload --max-requests 1000 --max-requests-jitter 50 --log-level=debug --access-logfile - --error-logfile - wsgi:app

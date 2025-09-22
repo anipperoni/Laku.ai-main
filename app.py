@@ -28,8 +28,13 @@ def get_db_connection():
     # Get the database URL from environment variables (provided by Railway)
     DATABASE_URL = os.getenv('DATABASE_URL')
     
+    print(f"Attempting to connect to database...")
+    print(f"DATABASE_URL: {'*' * 8 + DATABASE_URL[-8:] if DATABASE_URL else 'Not set'}")
+    
     if not DATABASE_URL:
-        raise ValueError("DATABASE_URL environment variable is not set")
+        error_msg = "❌ DATABASE_URL environment variable is not set"
+        print(error_msg)
+        raise ValueError(error_msg)
     
     # For Railway's PostgreSQL service
     if 'postgres.railway.internal' in DATABASE_URL:
@@ -37,7 +42,9 @@ def get_db_connection():
     
     try:
         # Parse the connection URL
+        print("Parsing database URL...")
         result = urlparse(DATABASE_URL)
+        
         username = result.username
         password = result.password
         database = result.path[1:]  # Remove the leading '/'
@@ -56,19 +63,41 @@ def get_db_connection():
             'keepalives': 1,        # Enable keepalive
             'keepalives_idle': 30,  # Idle time before sending keepalive
             'keepalives_interval': 10,  # Interval between keepalives
-            'keepalives_count': 5    # Number of keepalives before dropping connection
+            'keepalives_count': 5,  # Number of keepalives before dropping connection
+            'application_name': 'LakuAI-App'  # For identifying connection in pg_stat_activity
         }
         
+        print(f"Connecting to database: {hostname}:{port}/{database} as user {username}")
+        print(f"Using SSL: {'Yes' if 'sslmode=require' in DATABASE_URL else 'No'}")
+        
         # Create and return the connection with RealDictCursor
-        return psycopg2.connect(
+        conn = psycopg2.connect(
             **conn_params,
             cursor_factory=RealDictCursor
         )
+        print("✅ Successfully connected to the database")
+        return conn
         
     except Exception as e:
-        print(f"Error connecting to the database: {e}")
+        error_msg = f"❌ Error connecting to the database: {str(e)}"
+        print(error_msg)
+        print(f"Error type: {type(e).__name__}")
+        
+        # Log specific connection errors
+        if "Connection refused" in str(e):
+            print("⚠️  The database server is not running or not accessible")
+            print("   - Check if the database host and port are correct")
+            print(f"   - Host: {hostname}, Port: {port}")
+        elif "password authentication failed" in str(e).lower():
+            print("⚠️  Authentication failed")
+            print("   - Check if the username and password are correct")
+        elif "does not exist" in str(e).lower():
+            print("⚠️  Database does not exist")
+            print(f"   - Database name: {database}")
+        
         # Fallback to local config if available
         try:
+            print("\nAttempting fallback to local database configuration...")
             local_config = {
                 "dbname": os.getenv("DB_NAME"),
                 "user": os.getenv("DB_USER"),
@@ -76,9 +105,19 @@ def get_db_connection():
                 "host": os.getenv("DB_HOST"),
                 "port": int(os.getenv("DB_PORT", 5432))
             }
-            return psycopg2.connect(**local_config, cursor_factory=RealDictCursor)
+            print(f"Local config: { {k: v if k != 'password' else '***' for k, v in local_config.items()} }")
+            conn = psycopg2.connect(**local_config, cursor_factory=RealDictCursor)
+            print("✅ Successfully connected to local database")
+            return conn
         except Exception as fallback_error:
-            print(f"Fallback connection also failed: {fallback_error}")
+            print(f"❌ Fallback connection also failed: {fallback_error}")
+            print(f"Error type: {type(fallback_error).__name__}")
+            print("\nTroubleshooting steps:")
+            print("1. Verify your DATABASE_URL is correct")
+            print("2. Check if the database server is running and accessible")
+            print("3. Verify the database user has the correct permissions")
+            print("4. Check if the database exists and is accessible with the provided credentials")
+            print("5. Ensure your IP is whitelisted in the database's firewall settings")
             raise
 
 def get_item_price(item_name):
@@ -986,6 +1025,40 @@ You are **Laku**, a friendly Bruneian AI assistant built by Team Katalis to help
             "action": "error"
         }), 200
 
+# ---------------- Test Routes ----------------
+@app.route('/test-db')
+def test_db():
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT version()')
+            db_version = cur.fetchone()
+        return jsonify({
+            'status': 'success',
+            'database': 'connected',
+            'version': db_version['version'] if db_version else 'unknown'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'type': type(e).__name__
+        }), 500
+
 # ---------------- Run ----------------
 if __name__ == "__main__":
+    # Print environment variables (for debugging, remove in production)
+    print("Environment Variables:")
+    for key, value in os.environ.items():
+        if 'DATABASE' in key or 'DB_' in key:
+            print(f"{key}: {'*' * 8 + value[-8:] if value else 'Not set'}")
+    
+    # Test database connection on startup
+    try:
+        conn = get_db_connection()
+        print("✅ Database connection successful!")
+        conn.close()
+    except Exception as e:
+        print(f"❌ Database connection failed: {e}")
+    
     app.run(debug=True)
