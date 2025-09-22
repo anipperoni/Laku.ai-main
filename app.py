@@ -25,8 +25,15 @@ import urllib.parse
 from urllib.parse import urlparse
 
 def get_db_connection():
-    # Use the provided connection string or fall back to environment variables
-    DATABASE_URL = "postgresql://postgres:NLAeywTKVSCIAzssPqFZnYsNaqiZvABw@postgres.railway.internal:5432/railway"
+    # Get the database URL from environment variables (provided by Railway)
+    DATABASE_URL = os.getenv('DATABASE_URL')
+    
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is not set")
+    
+    # For Railway's PostgreSQL service
+    if 'postgres.railway.internal' in DATABASE_URL:
+        DATABASE_URL = DATABASE_URL.replace('postgresql://', 'postgresql://')
     
     try:
         # Parse the connection URL
