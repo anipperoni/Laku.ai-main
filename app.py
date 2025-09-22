@@ -21,17 +21,58 @@ if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 # ---------------- Database Config ----------------
-DB_CONFIG = {
-    "dbname": os.getenv("DB_NAME"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "host": os.getenv("DB_HOST"),
-    "port": int(os.getenv("DB_PORT", 5432))
-}
+import urllib.parse
+from urllib.parse import urlparse
 
-# ---------------- Helper Functions ----------------
 def get_db_connection():
-    return psycopg2.connect(**DB_CONFIG, cursor_factory=RealDictCursor)
+    # Use the provided connection string or fall back to environment variables
+    DATABASE_URL = "postgresql://postgres:NLAeywTKVSCIAzssPqFZnYsNaqiZvABw@postgres.railway.internal:5432/railway"
+    
+    try:
+        # Parse the connection URL
+        result = urlparse(DATABASE_URL)
+        username = result.username
+        password = result.password
+        database = result.path[1:]  # Remove the leading '/'
+        hostname = result.hostname
+        port = result.port
+        
+        # Create connection parameters
+        conn_params = {
+            'dbname': database,
+            'user': username,
+            'password': password,
+            'host': hostname,
+            'port': port,
+            'sslmode': 'require',  # Enable SSL for secure connection
+            'connect_timeout': 10,  # 10 second connection timeout
+            'keepalives': 1,        # Enable keepalive
+            'keepalives_idle': 30,  # Idle time before sending keepalive
+            'keepalives_interval': 10,  # Interval between keepalives
+            'keepalives_count': 5    # Number of keepalives before dropping connection
+        }
+        
+        # Create and return the connection with RealDictCursor
+        return psycopg2.connect(
+            **conn_params,
+            cursor_factory=RealDictCursor
+        )
+        
+    except Exception as e:
+        print(f"Error connecting to the database: {e}")
+        # Fallback to local config if available
+        try:
+            local_config = {
+                "dbname": os.getenv("DB_NAME"),
+                "user": os.getenv("DB_USER"),
+                "password": os.getenv("DB_PASSWORD"),
+                "host": os.getenv("DB_HOST"),
+                "port": int(os.getenv("DB_PORT", 5432))
+            }
+            return psycopg2.connect(**local_config, cursor_factory=RealDictCursor)
+        except Exception as fallback_error:
+            print(f"Fallback connection also failed: {fallback_error}")
+            raise
 
 def get_item_price(item_name):
     """Get the price of an item from the inventory."""
