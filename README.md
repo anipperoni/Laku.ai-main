@@ -72,12 +72,11 @@ Laku.ai is a modern, AI-powered sales management system designed to help small b
 4. **Set up environment variables**
    Create a `.env` file in the project root with the following content:
    ```
-   DB_NAME=lakuaidb
+   DB_NAME=warungtics_db
    DB_USER=your_username
    DB_PASSWORD=your_password
    DB_HOST=localhost
    DB_PORT=5432
-   SECRET_KEY=your-secret-key-here
    GEMINI_API_KEY=your-gemini-api-key-here
    ```
 

@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS sales (
 
 -- Storage table for inventory management
 CREATE TABLE IF NOT EXISTS storage (
-    id SERIAL PRIMARY KEY,
+    item_id SERIAL PRIMARY KEY,
     item_name TEXT NOT NULL UNIQUE,
     quantity INTEGER NOT NULL DEFAULT 0,
     price NUMERIC(10, 2) NOT NULL,
